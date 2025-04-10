@@ -1,3 +1,26 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env/
+.venv/
+
+# Screenshots
+screenshot_*.png
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
