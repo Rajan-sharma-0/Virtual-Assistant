@@ -19,6 +19,8 @@ from assistant_ui import VirtualAssistantUI
 import threading
 from dotenv import load_dotenv
 import requests
+from pygame import mixer
+import glob
 
 load_dotenv()
 
@@ -30,32 +32,71 @@ class VirtualAssistant:
         self.voices = self.engine.getProperty("voices")
         self.engine.setProperty("voice", self.voices[1].id)
         self.engine.setProperty("rate", 140)
+        self.music_playing = False
+        self.current_song = None
+        mixer.init()
 
     def speak(self, audio):
         try:
-            self.engine.say(audio)
-            if self.ui:
-                self.ui.update_output(audio)
-            print(audio)
-            self.engine.runAndWait()
+            # Reset engine if needed
+            if not self.engine._inLoop:
+                self.engine.say(audio)
+                if self.ui:
+                    self.ui.update_output(audio)
+                print(audio)
+                self.engine.runAndWait()
+            else:
+                # Create new engine instance if previous one is stuck
+                self.engine = pyttsx3.init("sapi5")
+                self.engine.setProperty("voice", self.voices[1].id)
+                self.engine.setProperty("rate", 140)
+                self.engine.say(audio)
+                if self.ui:
+                    self.ui.update_output(audio)
+                print(audio)
+                self.engine.runAndWait()
         except Exception as e:
             print("Error in speak function:")
             traceback.print_exc()
+            # Fallback to just UI update
+            if self.ui:
+                self.ui.update_output(audio)
+            print(audio)
 
     def take_command(self):
         r = sr.Recognizer()
-        with sr.Microphone() as source:
-            self.update_ui("Listening...")
-            r.pause_threshold = 1
-            audio = r.listen(source, timeout=10, phrase_time_limit=10)
-
+        r.dynamic_energy_threshold = True
+        r.energy_threshold = 4000
+        r.pause_threshold = 0.8
+        r.phrase_threshold = 0.3
+        r.non_speaking_duration = 0.5
+        
         try:
-            self.update_ui("Recognizing...")
-            query = r.recognize_google(audio, language='en-in')
-            self.update_ui(f"User said: {query}")
-            return query.lower()
+            with sr.Microphone() as source:
+                self.update_ui("Listening...")
+                # Adjust for ambient noise
+                r.adjust_for_ambient_noise(source, duration=0.5)
+                
+                try:
+                    audio = r.listen(source, timeout=5, phrase_time_limit=5)
+                    self.update_ui("Recognizing...")
+                    
+                    try:
+                        query = r.recognize_google(audio, language='en-in')
+                        self.update_ui(f"User said: {query}")
+                        return query.lower()
+                    except sr.UnknownValueError:
+                        return "None"
+                    except sr.RequestError:
+                        self.update_ui("Could not request results")
+                        return "None"
+                        
+                except sr.WaitTimeoutError:
+                    self.update_ui("Listening timed out")
+                    return "None"
+                    
         except Exception as e:
-            self.speak("Listening....")
+            print(f"Error in take_command: {str(e)}")
             return "None"
 
     def update_ui(self, message):
@@ -92,6 +133,58 @@ class VirtualAssistant:
             print(e)
             self.speak("Sorry, I was unable to send the email.")
 
+    def play_music(self, music_dir="D:\\nkk80\\Music"):
+        try:
+            music_files = []
+            for ext in ('*.mp3', '*.wav', '*.m4a'):
+                music_files.extend(glob.glob(os.path.join(music_dir, ext)))
+            
+            if not music_files:
+                self.speak("No music files found in the specified directory")
+                return
+            
+            if not self.current_song:
+                self.current_song = random.choice(music_files)
+                mixer.music.load(self.current_song)
+                mixer.music.play()
+                self.music_playing = True
+                song_name = os.path.basename(self.current_song)
+                # self.speak(f"Playing {song_name}")
+                self.speak(f"Playing music")
+            elif not self.music_playing:
+                mixer.music.unpause()
+                self.music_playing = True
+                self.speak("Resuming music")
+                
+        except Exception as e:
+            print(f"Error playing music: {str(e)}")
+            self.speak("Sorry, I couldn't play the music")
+
+    def pause_music(self):
+        if self.music_playing:
+            mixer.music.pause()
+            self.music_playing = False
+            self.speak("Music paused")
+
+    def next_song(self, music_dir="D:\\nkk80\\Music"):
+        try:
+            music_files = []
+            for ext in ('*.mp3', '*.wav', '*.m4a'):
+                music_files.extend(glob.glob(os.path.join(music_dir, ext)))
+            
+            if music_files:
+                available_songs = [song for song in music_files if song != self.current_song]
+                if available_songs:
+                    self.current_song = random.choice(available_songs)
+                    mixer.music.load(self.current_song)
+                    mixer.music.play()
+                    self.music_playing = True
+                    song_name = os.path.basename(self.current_song)
+                    self.speak(f"Playing {song_name}")
+        except Exception as e:
+            print(f"Error changing song: {str(e)}")
+            self.speak("Sorry, I couldn't change the song")
+
     def process_commands(self, query):
         try:
             # Conversation commands
@@ -126,29 +219,60 @@ class VirtualAssistant:
                 self.speak("Screenshot saved")
 
             # Media controls
-            elif "volume up" in query:
-                pyautogui.press("volumeup", presses=5)
+            elif "up" in query or "increase" in query:
+                pyautogui.press("volumeup", presses=10)
                 self.speak("Volume increased")
-            elif "volume down" in query:
-                pyautogui.press("volumedown", presses=5)
+            elif " down" in query or "decrease" in query:
+                pyautogui.press("volumedown", presses=10)
                 self.speak("Volume decreased")
-            elif "mute" in query:
+            elif "mute" in query or "silence" in query:
                 pyautogui.press("volumemute")
                 self.speak("Audio muted")
+            elif "unmute" in query or "unsilence" in query:
+                pyautogui.press("volumemute")
+                self.speak("Audio unmuted")
 
             # Application controls
-            elif "minimize window" in query:
+            elif "minimize " in query or "minimize all" in query:
                 pyautogui.hotkey('win', 'down')
                 self.speak("Window minimized")
-            elif "maximize window" in query:
+            elif "maximize " in query or "maximize all" in query or "maximize window" in query:
                 pyautogui.hotkey('win', 'up')
                 self.speak("Window maximized")
-            elif "switch window" in query:
+            elif "switch window" in query or "switch app" in query :
                 pyautogui.hotkey('alt', 'tab')
                 self.speak("Switching window")
-            elif "close window" in query:
+            elif "close window" in query or "close app" in query:
                 pyautogui.hotkey('alt', 'f4')
                 self.speak("Window closed")
+            elif "close" in query:
+                app_name = query.replace("close", "").strip().lower()
+                if app_name:
+                    try:
+                        app_map = {
+                            "chrome": "chrome.exe",
+                            "firefox": "firefox.exe",
+                            "notepad": "notepad.exe",
+                            "calculator": "calc.exe",
+                            "word": "winword.exe",
+                            "excel": "excel.exe",
+                            "powerpoint": "powerpnt.exe",
+                            "edge": "msedge.exe",
+                            "spotify": "spotify.exe",
+                            "teams": "teams.exe",
+                            "visual studio": "devenv.exe",
+                            "code": "code.exe",
+                        }
+                        
+                        process_name = app_map.get(app_name, f"{app_name}.exe")
+                        os.system(f"taskkill /f /im {process_name}")
+                        self.speak(f"Closed {app_name}")
+                    except Exception as e:
+                        self.speak(f"Sorry, I couldn't close {app_name}")
+                        print(f"Error closing app: {str(e)}")
+                else:
+                    pyautogui.hotkey('alt', 'f4')
+                    self.speak("Closed active window")
 
             # System tools
             elif "task manager" in query:
@@ -174,6 +298,39 @@ class VirtualAssistant:
                 if folder_name != "none" and os.path.exists(folder_name):
                     os.rmdir(folder_name)
                     self.speak(f"Deleted folder {folder_name}")
+            elif "open folder" in query:
+                try:
+                    folder_map = {
+                        "documents": os.path.expanduser("~\\Documents"),
+                        "downloads": os.path.expanduser("~\\Downloads"),
+                        "desktop": os.path.expanduser("~\\Desktop"),
+                        "pictures": os.path.expanduser("~\\Pictures"),
+                        "music": os.path.expanduser("~\\Music"),
+                        "videos": os.path.expanduser("~\\Videos"),
+                        "program files": os.environ.get("ProgramFiles"),
+                        "windows": os.environ.get("windir"),
+                        "system": os.path.join(os.environ.get("windir"), "System32"),
+                        "home": os.path.expanduser("~")
+                    }
+
+                    folder_name = query.replace("open folder", "").strip().lower()
+                    
+                    if not folder_name:
+                        self.speak("Which folder should I open?")
+                        folder_name = self.take_command().lower()
+                    
+                    if folder_name != "none":
+                        folder_path = folder_map.get(folder_name, folder_name)
+                        
+                        if os.path.exists(folder_path):
+                            os.startfile(folder_path)
+                            self.speak(f"Opening folder: {folder_name}")
+                        else:
+                            self.speak(f"Sorry, I couldn't find the folder: {folder_name}")
+                
+                except Exception as e:
+                    print(f"Error opening folder: {str(e)}")
+                    self.speak("Sorry, I couldn't open that folder")
 
             # Web commands
             elif "open youtube" in query:
@@ -255,11 +412,20 @@ class VirtualAssistant:
             elif "tell me a joke" in query:
                 joke = pyjokes.get_joke()
                 self.speak(joke)
-            elif "play music" in query:
-                music_dir = "C:\\Users\\YourUsername\\Music"  # Change this to your music directory
-                songs = os.listdir(music_dir)
-                if songs:
-                    os.startfile(os.path.join(music_dir, random.choice(songs)))
+            elif "play " in query:
+                self.play_music()
+            elif "pause " in query or "pause song" in query:
+                self.pause_music()
+            elif "resume " in query or "resume song" in query or "play " in query:
+                self.play_music()
+            elif "next " in query or "change " in query:
+                self.next_song()
+            elif "stop " in query or "stop song" in query:
+                if self.music_playing:
+                    mixer.music.stop()
+                    self.music_playing = False
+                    self.current_song = None
+                    self.speak("Music stopped")
 
             # Weather (requires WeatherAPI key)
             elif "weather" in query:
@@ -276,7 +442,6 @@ class VirtualAssistant:
                             location = weather_data['location']
                             current = weather_data['current']
                             
-                            # Extract weather information
                             city_name = location['name']
                             region = location['region']
                             country = location['country']
@@ -284,14 +449,12 @@ class VirtualAssistant:
                             feels_like = current['feelslike_c']
                             humidity = current['humidity']
                             condition = current['condition']['text']
-                            # wind_speed = current['wind_kph']
                             
                             weather_info = (
                                 f"The current weather in {city_name} is:\n"
                                 f"Temperature: {temp_c}°C\n"
                                 f"Feels like: {feels_like}°C\n"
                                 f"Humidity: {humidity}%\n"
-                                # f"Wind Speed: {wind_speed} km/h\n"
                                 f"Conditions: {condition}"
                             )
                             

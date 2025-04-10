@@ -51,16 +51,28 @@ class VirtualAssistantUI:
         self.animation_speed = 50
         self.matrix_symbols = []
         
+        # Update theme colors
+        self.colors = {
+            'bg_dark': '#121212',
+            'bg_medium': '#1E1E1E',
+            'bg_light': '#2D2D2D',
+            'accent': '#00FF44',
+            'text': '#E0E0E0',
+            'highlight': '#00FF88'
+        }
+        
         # Then set up the window
         self.root = root
-        self.root.title("NOVA AI")
+        self.root.title("ECHO ")
         self.root.geometry("1200x800")
-        self.root.configure(bg='#0A0A0A')
+        self.root.configure(bg=self.colors['bg_dark'])
         
         # Create UI elements
         self.matrix_canvas = self.create_matrix_background()
         self.container = self.create_glass_container()
         self.create_animated_header()
+        self.create_voice_animation()
+        self.animate_voice()
         self.create_audio_visualizer()
         self.create_enhanced_output()
         self.create_modern_controls()
@@ -118,13 +130,13 @@ class VirtualAssistantUI:
 
     def create_glass_container(self):
         # Create main container
-        container = tk.Frame(self.root, bg='#1E1E1E')
+        container = tk.Frame(self.root, bg=self.colors['bg_medium'])
         container.place(relx=0.1, rely=0.1, relwidth=0.8, relheight=0.8)
         
         # Create layered glass effect using canvas
         glass_overlay = tk.Canvas(
             container,
-            bg='#1E1E1E',
+            bg=self.colors['bg_medium'],
             highlightthickness=0
         )
         glass_overlay.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -144,9 +156,9 @@ class VirtualAssistantUI:
         # Add subtle border
         border = tk.Frame(
             container,
-            bg='#2D2D2D',
+            bg=self.colors['bg_light'],
             highlightthickness=1,
-            highlightbackground='#3D3D3D'
+            highlightbackground=self.colors['bg_light']
         )
         border.place(relx=0, rely=0, relwidth=1, relheight=1)
         
@@ -155,10 +167,10 @@ class VirtualAssistantUI:
     def create_animated_header(self):
         self.header = tk.Label(
             self.container,
-            text="NOVA AI ASSISTANT",
+            text="ECHO AI ASSISTANT",
             font=('Orbitron', 24, 'bold'),
-            bg='#1E1E1E',
-            fg='#00FF00'
+            bg=self.colors['bg_medium'],
+            fg=self.colors['accent']
         )
         self.header.place(relx=0.05, relwidth=0.9, relheight=0.02)
         self.animate_header_color()
@@ -166,7 +178,7 @@ class VirtualAssistantUI:
     def create_audio_visualizer(self):
         self.viz_canvas = tk.Canvas(
             self.container,
-            bg='#1E1E1E',
+            bg=self.colors['bg_medium'],
             highlightthickness=0,
             height=100
         )
@@ -181,37 +193,105 @@ class VirtualAssistantUI:
             y = center_y + 30 * math.sin(angle)
             line = self.viz_canvas.create_line(
                 center_x, center_y, x, y,
-                fill='#00FF00',
+                fill=self.colors['accent'],
                 width=2
             )
             self.viz_elements.append(line)
         
         self.animate_visualizer()
 
+    def create_voice_animation(self):
+        # Create animation container
+        self.voice_frame = tk.Frame(
+            self.container,
+            bg=self.colors['bg_medium'],
+            height=80
+        )
+        self.voice_frame.place(relx=0.25, rely=0.12, relwidth=0.5)
+        
+        # Create animation canvas
+        self.voice_canvas = tk.Canvas(
+            self.voice_frame,
+            bg=self.colors['bg_medium'],
+            highlightthickness=0,
+            height=80
+        )
+        self.voice_canvas.pack(fill=tk.BOTH, expand=True)
+        
+        # Create voice bars
+        self.voice_bars = []
+        num_bars = 20
+        bar_width = 8
+        bar_spacing = 15
+        
+        for i in range(num_bars):
+            x = (i * (bar_width + bar_spacing)) + 50
+            bar = self.voice_canvas.create_line(
+                x, 40, x, 40,  # Initial position (compressed)
+                fill=self.colors['accent'],
+                width=bar_width,
+                capstyle=tk.ROUND
+            )
+            self.voice_bars.append({
+                'shape': bar,
+                'phase': i * (math.pi / 8),
+                'frequency': random.uniform(2, 4)
+            })
+
+    def animate_voice(self):
+        if self.is_listening:
+            t = time.time()
+            for bar in self.voice_bars:
+                # Create complex wave pattern
+                wave = math.sin(t * bar['frequency'] + bar['phase'])
+                amplitude = 20 * abs(wave)  # Max height of 20 pixels
+                
+                # Get bar position
+                x1, _, x2, _ = self.voice_canvas.coords(bar['shape'])
+                
+                # Update bar height
+                self.voice_canvas.coords(
+                    bar['shape'],
+                    x1, 40 - amplitude,  # Top point
+                    x2, 40 + amplitude   # Bottom point
+                )
+                
+                # Update bar color based on amplitude
+                intensity = int(127 + 128 * abs(wave))
+                color = f'#{0:02x}{intensity:02x}{0:02x}'
+                self.voice_canvas.itemconfig(bar['shape'], fill=color)
+        else:
+            # Reset bars to center when not listening
+            for bar in self.voice_bars:
+                x1, _, x2, _ = self.voice_canvas.coords(bar['shape'])
+                self.voice_canvas.coords(bar['shape'], x1, 40, x2, 40)
+                self.voice_canvas.itemconfig(bar['shape'], fill=self.colors['accent'])
+        
+        self.root.after(50, self.animate_voice)
+
     def create_enhanced_output(self):
-        # Create frame with title bar
-        output_frame = tk.Frame(self.container, bg='#1E1E1E')
+        output_frame = tk.Frame(self.container, bg=self.colors['bg_medium'])
         output_frame.place(relx=0.05, rely=0.25, relwidth=0.9, relheight=0.6)
         
-        # Title bar
-        title_bar = tk.Frame(output_frame, bg='#2D2D2D')
+        # Modern title bar
+        title_bar = tk.Frame(output_frame, bg=self.colors['bg_light'])
         title_bar.pack(fill=tk.X, pady=(0, 1))
         
         tk.Label(
             title_bar,
             text="⚡ Console Output",
             font=('JetBrains Mono', 10),
-            bg='#2D2D2D',
-            fg='#00FF00'
+            bg=self.colors['bg_light'],
+            fg=self.colors['accent']
         ).pack(side=tk.LEFT, padx=10, pady=5)
         
-        # Output area with custom scrollbar
+        # Enhanced output area
         self.output_area = scrolledtext.ScrolledText(
             output_frame,
             font=('JetBrains Mono', 11),
-            bg='#2D2D2D',
-            fg='#00FF00',
-            insertbackground='#00FF00',
+            bg=self.colors['bg_light'],
+            fg=self.colors['accent'],
+            insertbackground=self.colors['accent'],
             relief=tk.FLAT,
             pady=10,
             padx=10
@@ -219,7 +299,7 @@ class VirtualAssistantUI:
         self.output_area.pack(fill=tk.BOTH, expand=True)
 
     def create_modern_controls(self):
-        control_frame = tk.Frame(self.container, bg='#1E1E1E')
+        control_frame = tk.Frame(self.container, bg=self.colors['bg_medium'])
         control_frame.place(relx=0.05, rely=0.88, relwidth=0.9, relheight=0.1)
         
         # Status indicator with pulse effect
@@ -227,7 +307,7 @@ class VirtualAssistantUI:
             control_frame,
             width=12,
             height=12,
-            bg='#1E1E1E',
+            bg=self.colors['bg_medium'],
             highlightthickness=0
         )
         self.status_dot.pack(side=tk.LEFT, padx=5)
@@ -241,20 +321,20 @@ class VirtualAssistantUI:
             control_frame,
             text="Status: Ready",
             font=('JetBrains Mono', 11),
-            bg='#1E1E1E',
-            fg='#00FF00'
+            bg=self.colors['bg_medium'],
+            fg=self.colors['accent']
         )
         self.status_label.pack(side=tk.LEFT, padx=5)
         
         # Modern buttons with hover effects
-        button_frame = tk.Frame(control_frame, bg='#1E1E1E')
+        button_frame = tk.Frame(control_frame, bg=self.colors['bg_medium'])
         button_frame.pack(side=tk.RIGHT)
         
         self.start_button = self.create_hover_button(
             button_frame,
             "⏵ START",
             self.start_listening,
-            '#00FF00'
+            self.colors['accent']
         )
         self.stop_button = self.create_hover_button(
             button_frame,
@@ -265,32 +345,39 @@ class VirtualAssistantUI:
         self.stop_button.configure(state='disabled')
 
     def create_hover_button(self, parent, text, command, color):
-        frame = tk.Frame(parent, bg='#1E1E1E')
+        frame = tk.Frame(parent, bg=self.colors['bg_medium'])
         frame.pack(side=tk.LEFT, padx=5)
         
-        btn = tk.Canvas(frame, width=120, height=35, bg='#1E1E1E', highlightthickness=0)
+        btn = tk.Canvas(
+            frame,
+            width=120,
+            height=35,
+            bg=self.colors['bg_medium'],
+            highlightthickness=0
+        )
         btn.pack()
         
         def draw_button(hover=False):
             btn.delete('all')
             if hover:
+                # Glow effect
                 btn.create_rectangle(
-                    0, 0, 120, 35,
-                    fill='#2D2D2D',
-                    outline=color,
+                    2, 2, 118, 33,
+                    fill=self.colors['bg_light'],
+                    outline=self.colors['accent'],
                     width=2
                 )
             else:
                 btn.create_rectangle(
-                    0, 0, 120, 35,
-                    fill='#1E1E1E',
-                    outline=color,
+                    2, 2, 118, 33,
+                    fill=self.colors['bg_medium'],
+                    outline=self.colors['accent'],
                     width=1
                 )
             btn.create_text(
                 60, 17,
                 text=text,
-                fill=color,
+                fill=self.colors['accent'],
                 font=('JetBrains Mono', 11, 'bold')
             )
         
@@ -302,7 +389,7 @@ class VirtualAssistantUI:
         return btn
 
     def animate_header_color(self):
-        colors = ['#00FF00', '#00CC00', '#009900', '#00CC00']
+        colors = [self.colors['accent'], '#00CC00', '#009900', '#00CC00']
         def update_color(index=0):
             self.header.configure(fg=colors[index])
             self.root.after(500, update_color, (index + 1) % len(colors))
@@ -337,7 +424,7 @@ class VirtualAssistantUI:
             self.start_button.config(state='disabled')
             self.stop_button.config(state='normal')
             threading.Thread(target=self.assistant.run, daemon=True).start()
-    
+
     def stop_listening(self):
         if self.is_listening and self.assistant:
             self.is_listening = False
