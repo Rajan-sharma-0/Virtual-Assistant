@@ -2,8 +2,13 @@
 /shelf/
 /workspace.xml
 
-# Environment variables
+# Environment variables and secrets
 .env
+*.env
+.env.local
+.env.*.local
+.env.development
+.env.production
 
 # Python
 __pycache__/
